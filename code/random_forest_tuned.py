@@ -5,7 +5,6 @@ import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import mean_absolute_percentage_error, mean_absolute_error, mean_squared_error
-
 from feature_engineering import feature_engineering_pipeline  # Import your pipeline
 
 # Define parameter grid for Random Forest
@@ -23,13 +22,13 @@ def tune_random_forest(training_X, training_Y):
     grid_search = GridSearchCV(
         estimator=model,
         param_grid=param_grid,
-        scoring='neg_mean_absolute_error',  # Optimize for MAE
-        cv=3,  # 3-fold cross-validation
-        n_jobs=-1  # Use all available processors
+        scoring='neg_mean_absolute_error',
+        cv=3,
+        n_jobs=-1
     )
     
     grid_search.fit(training_X, training_Y)
-    return grid_search.best_params_  # Return the best parameters
+    return grid_search.best_params_
 
 def main():
     systems = ['batlik', 'dconvert', 'h2', 'jump3r', 'kanzi', 'lrzip', 'x264', 'xz', 'z3']
@@ -37,23 +36,19 @@ def main():
     train_frac = 0.7
     random_seed = 1
 
+    results = []
+
     for current_system in systems:
-        datasets_location = f'D:/ISE_lab2/lab2/datasets/{current_system}'
+        datasets_location = '../datasets/{}'.format(current_system)
         csv_files = [f for f in os.listdir(datasets_location) if f.endswith('.csv')]
 
         for csv_file in csv_files:
             print(f"\n> System: {current_system}, Dataset: {csv_file}, Training data fraction: {train_frac}, Number of repeats: {num_repeats}")
             start_time = time.time()
 
-            # Load dataset
             data_path = os.path.join(datasets_location, csv_file)
             data = pd.read_csv(data_path)
 
-            # Universal approach: rename 'throughput' -> 'time' if 'time' not in columns
-            if 'time' not in data.columns and 'throughput' in data.columns:
-                data.rename(columns={'throughput': 'time'}, inplace=True)
-
-            # Apply feature engineering, skip if any error
             try:
                 data = feature_engineering_pipeline(data, target_column='time')
             except Exception as e:
@@ -62,7 +57,6 @@ def main():
 
             metrics = {'MAPE': [], 'MAE': [], 'RMSE': []}
 
-            # Repeat the process num_repeats times
             for current_repeat in range(num_repeats):
                 train_data = data.sample(frac=train_frac, random_state=random_seed * current_repeat)
                 test_data = data.drop(train_data.index)
@@ -72,10 +66,7 @@ def main():
                 testing_X = test_data.iloc[:, :-1]
                 testing_Y = test_data.iloc[:, -1]
 
-                # Hyperparameter tuning for Random Forest
                 best_params = tune_random_forest(training_X, training_Y)
-
-                # Train with the best hyperparameters
                 model = RandomForestRegressor(**best_params)
                 model.fit(training_X, training_Y)
 
@@ -94,11 +85,38 @@ def main():
             minutes = int(total_time // 60)
             seconds = int(total_time % 60)
 
-            print(f"Average MAPE: {np.mean(metrics['MAPE']):.4f}")
-            print(f"Average MAE:  {np.mean(metrics['MAE']):.4f}")
-            print(f"Average RMSE: {np.mean(metrics['RMSE']):.4f}")
+            avg_mape = np.mean(metrics['MAPE'])
+            avg_mae = np.mean(metrics['MAE'])
+            avg_rmse = np.mean(metrics['RMSE'])
+
+            # Print final results
+            print("Random Forest Tuned Performance:")
+            print(f"Average MAPE: {avg_mape:.4f}")
+            print(f"Average MAE:  {avg_mae:.4f}")
+            print(f"Average RMSE: {avg_rmse:.4f}")
             print(f"Time taken:   {minutes} min {seconds} sec")
             print("-" * 60)
 
+            # Store results for CSV
+            results.append({
+                'System': current_system,
+                'Dataset': csv_file,
+                'MAPE': round(avg_mape, 4),
+                'MAE': round(avg_mae, 4),
+                'RMSE': round(avg_rmse, 4)
+            })
+
+    # Save CSV to output folder
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.join(script_dir, 'output')
+    os.makedirs(output_dir, exist_ok=True)
+
+    output_path = os.path.join(output_dir, 'random_forest_tuned.csv')
+    results_df = pd.DataFrame(results)
+    results_df.to_csv(output_path, index=False)
+
+    print(f"\nAll results have been saved to {output_path}")
+
 if __name__ == "__main__":
     main()
+

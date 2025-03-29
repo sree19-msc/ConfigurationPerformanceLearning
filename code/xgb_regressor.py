@@ -11,16 +11,17 @@ def main():
     train_frac = 0.7
     random_seed = 1
 
-    for current_system in systems:
-        datasets_location = f'D:/ISE_lab2/lab2/datasets/{current_system}'
+    # List to store final results
+    results = []
 
+    for current_system in systems:
+        datasets_location = '../datasets/{}'.format(current_system)
         csv_files = [f for f in os.listdir(datasets_location) if f.endswith('.csv')]
 
         for csv_file in csv_files:
             print(f"\n> System: {current_system}, Dataset: {csv_file}, Training data fraction: {train_frac}, Number of repeats: {num_repeats}")
 
             data = pd.read_csv(os.path.join(datasets_location, csv_file))
-
             metrics = {'MAPE': [], 'MAE': [], 'RMSE': []}
 
             for current_repeat in range(num_repeats):
@@ -32,7 +33,6 @@ def main():
                 testing_X = test_data.iloc[:, :-1]
                 testing_Y = test_data.iloc[:, -1]
 
-                # Normal XGBoost model (no hyperparameter tuning)
                 model = XGBRegressor()
                 model.fit(training_X, training_Y)
 
@@ -46,10 +46,37 @@ def main():
                 metrics['MAE'].append(mae)
                 metrics['RMSE'].append(rmse)
 
-            print('Average MAPE: {:.4f}'.format(np.mean(metrics['MAPE'])))
-            print("Average MAE: {:.4f}".format(np.mean(metrics['MAE'])))
-            print("Average RMSE: {:.4f}".format(np.mean(metrics['RMSE'])))
+            avg_mape = np.mean(metrics['MAPE'])
+            avg_mae = np.mean(metrics['MAE'])
+            avg_rmse = np.mean(metrics['RMSE'])
+
+            # Print metrics
+            print("XGBoost Regressor Performance:")
+            print('Average MAPE: {:.4f}'.format(avg_mape))
+            print("Average MAE: {:.4f}".format(avg_mae))
+            print("Average RMSE: {:.4f}".format(avg_rmse))
             print('-' * 60)
+
+            # Store results
+            results.append({
+                'System': current_system,
+                'Dataset': csv_file,
+                'MAPE': round(avg_mape, 4),
+                'MAE': round(avg_mae, 4),
+                'RMSE': round(avg_rmse, 4)
+            })
+
+    # Save to output/xyz.csv
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.join(script_dir, 'output')
+    os.makedirs(output_dir, exist_ok=True)
+
+    output_path = os.path.join(output_dir, 'xgboost.csv')
+    results_df = pd.DataFrame(results)
+    results_df.to_csv(output_path, index=False)
+
+    print(f"\nAll results have been saved to {output_path}")
 
 if __name__ == "__main__":
     main()
+
